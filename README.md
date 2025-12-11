@@ -45,5 +45,3 @@ This project is a single, self-contained HTML file (siem_dashboard.html) and req
 Clone the repository.
 
 Open siem_dashboard.html directly in any web browser.
-
-(Recommended) Deploy the file using GitHub Pages to provide a direct, public link for recruiters and hiring managers.
