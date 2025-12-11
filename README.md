@@ -1,4 +1,4 @@
-🛡️ SIEM Log Triage Simulator (Security Operations Center Portfolio Project)
+SIEM Log Triage Simulator (Security Operations Center Portfolio Project)
 
 Project Summary
 
