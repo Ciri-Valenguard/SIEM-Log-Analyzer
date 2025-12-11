@@ -41,7 +41,3 @@ Brute Force Detection: Multiple failed login attempts (Medium risk) captured by 
 Running the Project
 
 This project is a single, self-contained HTML file (siem_dashboard.html) and requires no backend or complex setup.
-
-Clone the repository.
-
-Open siem_dashboard.html directly in any web browser.
