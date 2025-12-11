@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIEM Log Triage Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Light background */
+        }
+        .siem-container {
+            min-height: 85vh;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .log-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.75rem;
+        }
+        .log-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background-color: #374151; /* Gray-700 header */
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .log-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .high-risk-row {
+            background-color: #fee2e2; /* Red-100 */
+            color: #b91c1c; /* Red-700 */
+            font-weight: 600;
+        }
+        .medium-risk-row {
+            background-color: #fef3c7; /* Yellow-100 */
+            color: #d97706; /* Yellow-700 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="siem-container">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2">SIEM Triage Console (Simulated)</h1>
+        <p class="text-sm text-gray-500 mb-6">Demonstrates real-time log ingestion, filtering, and incident risk scoring.</p>
+
+        <!-- Search/Filter Bar -->
+        <div class="mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+            <label for="filterInput" class="block text-sm font-medium text-gray-700 mb-2">SIEM Search Query (e.g., `source:web`, `risk:high`, `user:admin`)</label>
+            <input type="text" id="filterInput" placeholder="Filter logs..."
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                   oninput="applyFilter()">
+        </div>
+        
+        <!-- Key Metrics Panel -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-xl shadow border border-gray-200">
+                <p class="text-sm text-gray-500">Total Events</p>
+                <p id="totalEvents" class="text-2xl font-bold text-gray-800">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border border-gray-200">
+                <p class="text-sm text-gray-500">High Risk Incidents</p>
+                <p id="highRiskCount" class="text-2xl font-bold text-red-600">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border border-gray-200">
+                <p class="text-sm text-gray-500">Filtered Events</p>
+                <p id="filteredCount" class="text-2xl font-bold text-indigo-600">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border border-gray-200">
+                <p class="text-sm text-gray-500">Analyzed Source Types</p>
+                <p id="sourceCount" class="text-2xl font-bold text-green-600">3</p>
+            </div>
+        </div>
+        
+        <!-- Log Table Container -->
+        <div class="bg-white rounded-xl shadow-xl overflow-x-auto h-[50vh] pane">
+            <table id="logTable" class="log-table">
+                <thead>
+                    <tr>
+                        <th class="w-16">Risk</th>
+                        <th class="w-24">Time</th>
+                        <th class="w-20">Source</th>
+                        <th class="w-32">Source IP</th>
+                        <th class="w-20">User/Host</th>
+                        <th class="w-auto">Description</th>
+                    </tr>
+                </thead>
+                <tbody id="logTableBody">
+                    <!-- Logs populated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        const filterInput = document.getElementById('filterInput');
+        const logTableBody = document.getElementById('logTableBody');
+        const totalEvents = document.getElementById('totalEvents');
+        const highRiskCount = document.getElementById('highRiskCount');
+        const filteredCount = document.getElementById('filteredCount');
+
+        // --- Simulated Log Data (The Core of the Project) ---
+        const MOCK_LOGS = [
+            // High Risk Incidents (for Triage demonstration)
+            { risk: 'High', time: '14:01:22', source: 'Firewall', ip: '103.20.55.180', user: 'N/A', description: 'GEO-BLOCK: Blocked connection attempt from known botnet IP (Vietnam). Rule ID: FW-001' },
+            { risk: 'High', time: '14:05:01', source: 'Web', ip: '45.79.135.20', user: 'admin', description: 'ALERT: Possible SQL Injection attempt detected in POST request payload. Signature: UNION SELECT' },
+            { risk: 'Medium', time: '14:10:45', source: 'Endpoint', ip: '192.168.1.55', user: 'service_acct', description: 'FAILURE: 5 failed login attempts for service_acct in 30 seconds. Potential brute force.' },
+            
+            // Medium Risk
+            { risk: 'Medium', time: '14:15:30', source: 'Endpoint', ip: '10.0.1.20', user: 'jdoe', description: 'POLICY: User jdoe successfully connected via VPN from non-standard location (Texas).' },
+            { risk: 'Medium', time: '14:20:10', source: 'Firewall', ip: '203.0.113.44', user: 'N/A', description: 'BLOCKED: Outbound connection to suspicious C2 port (8080) denied. Rule ID: FW-002' },
+
+            // Low Risk / Informational
+            { risk: 'Low', time: '14:25:05', source: 'Web', ip: '66.249.66.1', user: 'N/A', description: 'INFO: Standard GET request to /index.html. Status: 200.' },
+            { risk: 'Low', time: '14:30:15', source: 'Endpoint', ip: '192.168.1.10', user: 'bsmith', description: 'SUCCESS: User bsmith logged in successfully to workstation-05.' },
+            { risk: 'Low', time: '14:35:40', source: 'Firewall', ip: '172.217.10.14', user: 'N/A', description: 'INFO: Standard DNS query traffic allowed.' },
+            { risk: 'Low', time: '14:40:00', source: 'Web', ip: '54.192.20.100', user: 'N/A', description: 'INFO: Static asset served successfully. Status: 200.' },
+            { risk: 'Low', time: '14:45:10', source: 'Endpoint', ip: '192.168.1.100', user: 'jsmith', description: 'SUCCESS: User jsmith logged in successfully to workstation-01.' },
+        ];
+
+        // --- Core Functions ---
+
+        function renderLogs(logs) {
+            logTableBody.innerHTML = '';
+            
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                
+                let rowClass = '';
+                if (log.risk === 'High') {
+                    rowClass = 'high-risk-row';
+                } else if (log.risk === 'Medium') {
+                    rowClass = 'medium-risk-row';
+                }
+                row.className = rowClass;
+
+                // Simple icon representation for risk
+                let riskIcon = '';
+                if (log.risk === 'High') {
+                    riskIcon = '<span class="text-red-700">🔴</span>';
+                } else if (log.risk === 'Medium') {
+                    riskIcon = '<span class="text-yellow-700">🟡</span>';
+                } else {
+                    riskIcon = '<span class="text-green-600">🟢</span>';
+                }
+
+
+                row.innerHTML = `
+                    <td><div class="flex items-center">${riskIcon} <span class="ml-2">${log.risk}</span></div></td>
+                    <td>${log.time}</td>
+                    <td>${log.source}</td>
+                    <td>${log.ip}</td>
+                    <td>${log.user}</td>
+                    <td>${log.description}</td>
+                `;
+                logTableBody.appendChild(row);
+            });
+            
+            // Update Metrics
+            totalEvents.textContent = MOCK_LOGS.length;
+            highRiskCount.textContent = MOCK_LOGS.filter(l => l.risk === 'High').length;
+            filteredCount.textContent = logs.length;
+        }
+
+        function applyFilter() {
+            const query = filterInput.value.trim().toLowerCase();
+            if (!query) {
+                renderLogs(MOCK_LOGS);
+                return;
+            }
+
+            const filteredLogs = MOCK_LOGS.filter(log => {
+                // Combine all log fields into a single search string
+                const logString = `${log.risk} ${log.time} ${log.source} ${log.ip} ${log.user} ${log.description}`.toLowerCase();
+                
+                // Simple query parsing (key:value or just keyword)
+                if (query.includes(':')) {
+                    // Handle key:value queries (e.g., risk:high)
+                    const [key, value] = query.split(':').map(s => s.trim());
+                    
+                    if (key === 'risk' && log.risk.toLowerCase().includes(value)) return true;
+                    if (key === 'source' && log.source.toLowerCase().includes(value)) return true;
+                    if (key === 'ip' && log.ip.includes(value)) return true;
+                    if (key === 'user' && log.user.toLowerCase().includes(value)) return true;
+                    
+                    // Default to keyword search if key doesn't match a field
+                    return logString.includes(query);
+
+                } else {
+                    // Handle simple keyword queries (e.g., 'brute force')
+                    return logString.includes(query);
+                }
+            });
+
+            renderLogs(filteredLogs);
+        }
+
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            renderLogs(MOCK_LOGS);
+        });
+
+    </script>
+</body>
+</html>
